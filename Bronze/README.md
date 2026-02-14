@@ -47,7 +47,7 @@ All "Bronze Tier" requirements as specified in the hackathon guide have been met
 
 1.  **Clone this repository:**
     ```bash
-    git clone <repository_url>
+    git clone https://github.com/MJibranR/Hackathon-0-Personal-AI-Employee/
     cd Bronze
     ```
 2.  **Ensure Python 3.10+ is installed and in your PATH.**
