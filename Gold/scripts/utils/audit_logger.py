@@ -49,8 +49,7 @@ class AuditLogger:
         log_file = self._get_log_file()
         try:
             with open(log_file, "a", encoding="utf-8") as f:
-                f.write(json.dumps(entry) + "
-")
+                f.write(json.dumps(entry) + "\n")
         except Exception as e:
             # Fallback to standard logging if file write fails
             import logging

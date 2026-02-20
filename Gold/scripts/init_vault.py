@@ -49,8 +49,7 @@ def bootstrap():
     if not handbook.exists():
         handbook.write_text("# 📖 Company Handbook\n\n- Be polite.\n- Require approval for payments > $500.\n- Local-first only.")
 
-    print("
-✅ Initialization Complete. You are ready to run!")
+    print("\n✅ Initialization Complete. You are ready to run!")
     print("👉 Next Step: Open AI_Employee_Vault in Obsidian.")
 
 if __name__ == "__main__":

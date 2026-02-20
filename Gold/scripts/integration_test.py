@@ -94,8 +94,7 @@ TEST APPROVAL
     else:
         print("❌ FAILED: Audit log not found.")
 
-    print("
-🎉 INTEGRATION TEST COMPLETE: GOLD TIER VERIFIED.")
+    print("\n🎉 INTEGRATION TEST COMPLETE: GOLD TIER VERIFIED.")
     return True
 
 if __name__ == "__main__":

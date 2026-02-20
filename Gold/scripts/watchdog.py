@@ -4,7 +4,7 @@ import time
 import os
 import signal
 import sys
-# import psutil
+import psutil
 from .audit_logger import logger
 from datetime import datetime
 

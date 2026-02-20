@@ -14,6 +14,8 @@ APPROVED = VAULT_PATH / "Approved"
 DONE = VAULT_PATH / "Done"
 LOGS = VAULT_PATH / "Logs"
 
+import yaml
+
 class OdooApprovalHandler:
     def __init__(self):
         self.client = OdooClient()
@@ -30,24 +32,22 @@ class OdooApprovalHandler:
                 content = f.read()
             
             # Extract action and details from YAML front matter
-            match = re.search(r'---
-(.*?)
----', content, re.DOTALL)
+            match = re.search(r'---\n(.*?)\n---', content, re.DOTALL)
             if not match:
                 self.logger.error(f"No YAML metadata in {file_path.name}")
                 continue
             
             try:
-                # Manual parsing for simplicity in this script
-                metadata = {}
-                for line in match.group(1).split('
-'):
-                    if ':' in line:
-                        k, v = line.split(':', 1)
-                        metadata[k.strip()] = v.strip()
-                
+                metadata = yaml.safe_load(match.group(1))
                 action = metadata.get('action')
-                details = json.loads(metadata.get('details', '{}'))
+                details = metadata.get('details')
+                
+                # Handle cases where details might be a string (legacy/test mock)
+                if isinstance(details, str):
+                    details = json.loads(details)
+                
+                if not details:
+                    details = {}
                 
                 if action == "post_invoice":
                     invoice_id = details.get("invoice_id")

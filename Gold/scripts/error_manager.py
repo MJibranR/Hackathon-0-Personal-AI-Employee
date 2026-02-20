@@ -161,8 +161,6 @@ The system encountered an authentication or permission error and has paused rela
         # Create metadata report
         report_path = dest_path.with_suffix(".md.report")
         with open(report_path, "w", encoding="utf-8") as f:
-            f.write(f"Quarantined on: {datetime.now().isoformat()}
-Reason: {reason}
-Original Path: {file_path}")
+            f.write(f"Quarantined on: {datetime.now().isoformat()}\nReason: {reason}\nOriginal Path: {file_path}")
         
         logger.warning(f"File quarantined: {file_path.name}. Reason: {reason}")

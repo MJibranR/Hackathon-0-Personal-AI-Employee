@@ -14,6 +14,8 @@ APPROVED = VAULT_PATH / "Approved"
 DONE = VAULT_PATH / "Done"
 ACCOUNTING = VAULT_PATH / "Accounting"
 
+import yaml
+
 class SocialApprovalHandler:
     def __init__(self):
         self.meta_client = MetaClient()
@@ -30,23 +32,20 @@ class SocialApprovalHandler:
                 content = f.read()
             
             # Extract action and details from YAML metadata
-            match = re.search(r'---
-(.*?)
----', content, re.DOTALL)
+            match = re.search(r'---\n(.*?)\n---', content, re.DOTALL)
             if not match:
                 continue
             
-            metadata = {}
-            for line in match.group(1).split('
-'):
-                if ':' in line:
-                    k, v = line.split(':', 1)
-                    metadata[k.strip()] = v.strip()
-            
-            action = metadata.get('action')
-            # The 'details' field is a JSON string in my social_mcp.py implementation
             try:
-                details = json.loads(metadata.get('details', '{}'))
+                metadata = yaml.safe_load(match.group(1))
+                action = metadata.get('action')
+                details = metadata.get('details')
+                
+                if isinstance(details, str):
+                    details = json.loads(details)
+                
+                if not details:
+                    details = {}
             except json.JSONDecodeError:
                 continue
 
