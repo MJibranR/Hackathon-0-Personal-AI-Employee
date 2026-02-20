@@ -1,0 +1,1 @@
+---type: payment_approval amount: $1000 recipient: Vendor X reason: Urgent payment needed---Please approve this payment.
