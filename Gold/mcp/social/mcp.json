@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "social_media": {
+      "command": "python",
+      "args": ["-m", "mcp.social.social_mcp"],
+      "env": {
+        "FACEBOOK_ACCESS_TOKEN": "your_fb_token",
+        "INSTAGRAM_ACCESS_TOKEN": "your_ig_token",
+        "TWITTER_BEARER_TOKEN": "your_x_token",
+        "DRY_RUN": "true",
+        "VAULT_PATH": "C:/Users/DELL/Desktop/Hackathon 0/gold/AI_Employee_Vault"
+      }
+    }
+  }
+}

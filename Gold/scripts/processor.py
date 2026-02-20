@@ -67,6 +67,42 @@ def parse_plan(plan_content):
             })
         except (AttributeError, IndexError) as e:
             logger.error(f"Could not parse LinkedIn post content from plan: {e}")
+
+    # Check for Odoo action
+    if "create an odoo invoice" in original_task.lower():
+        try:
+            client_id = re.search(r'Client ID: (\d+)', original_task, re.IGNORECASE).group(1)
+            amount = re.search(r'Amount: ([\d\.]+)', original_task, re.IGNORECASE).group(1)
+            actions.append({
+                "action": "create_odoo_invoice",
+                "client_id": client_id,
+                "amount": amount
+            })
+        except (AttributeError, IndexError) as e:
+            logger.error(f"Could not parse Odoo invoice details from plan: {e}")
+
+    # Check for Meta action
+    if "post to facebook" in original_task.lower() or "post to instagram" in original_task.lower():
+        platform = "facebook" if "facebook" in original_task.lower() else "instagram"
+        try:
+            content = original_task.split('Content:')[1].strip()
+            actions.append({
+                "action": f"post_{platform}",
+                "content": content
+            })
+        except (AttributeError, IndexError) as e:
+            logger.error(f"Could not parse Meta post content from plan: {e}")
+
+    # Check for X action
+    if "post to x" in original_task.lower() or "tweet" in original_task.lower():
+        try:
+            content = original_task.split('Content:')[1].strip()
+            actions.append({
+                "action": "post_x",
+                "content": content
+            })
+        except (AttributeError, IndexError) as e:
+            logger.error(f"Could not parse X post content from plan: {e}")
             
     return actions if actions else None
 
@@ -105,6 +141,20 @@ plan_file: {os.path.basename(plan_file)}
         approval_content_body = f"""## LinkedIn Post Content
 {action_details.get('content', 'N/A')}
 """
+    elif action_type == 'create_odoo_invoice':
+        approval_content_header += f"client_id: {action_details.get('client_id', 'N/A')}\n"
+        approval_content_header += f"amount: {action_details.get('amount', 'N/A')}\n"
+        approval_content_body = f"""## Odoo Invoice Details
+- Client ID: {action_details.get('client_id', 'N/A')}
+- Amount: ${action_details.get('amount', 'N/A')}
+"""
+    elif action_type in ['post_facebook', 'post_instagram', 'post_x']:
+        # Ensure content is correctly indented for YAML multiline string
+        social_content = action_details.get('content', 'N/A').replace('\n', '\n  ')
+        approval_content_header += f"content: |\n  {social_content}\n"
+        approval_content_body = f"""## {action_type.replace('post_', '').capitalize()} Post Content
+{action_details.get('content', 'N/A')}
+"""
     
     final_approval_content = f"""{approval_content_header}---
 
@@ -133,25 +183,65 @@ def move_plan_to_done(plan_file):
     shutil.move(plan_file, done_file_path)
     logger.info(f"Moved plan {os.path.basename(plan_file)} to Done.")
 
+IN_PROGRESS_PATH = os.path.join(VAULT_PATH, "In_Progress")
+AGENT_NAME = os.getenv("AGENT_NAME", "Agent_Local") # Default to Local
+
+def is_task_claimed(task_filename):
+    """Checks if a task is already being worked on by another agent."""
+    for agent_dir in glob.glob(os.path.join(IN_PROGRESS_PATH, "*")):
+        if os.path.exists(os.path.join(agent_dir, task_filename)):
+            return True
+    return False
+
+def claim_task(task_path):
+    """Claims a task by moving it to the agent's In_Progress folder."""
+    agent_in_progress = os.path.join(IN_PROGRESS_PATH, AGENT_NAME)
+    os.makedirs(agent_in_progress, exist_ok=True)
+    task_filename = os.path.basename(task_path)
+    dest_path = os.path.join(agent_in_progress, task_filename)
+    shutil.move(task_path, dest_path)
+    return dest_path
+
+from .error_manager import ErrorManager
+from pathlib import Path
+
+# ... (rest of imports)
+
 def scan_plans_and_process():
     """Scans the Needs_Action directory and processes new plans."""
     processed_plans = get_processed_plans()
     logger.info(f"Scanning for plans: {NEEDS_ACTION_PATH}")
 
     for plan_file in glob.glob(os.path.join(NEEDS_ACTION_PATH, "*.md")):
+        plan_filename = os.path.basename(plan_file)
+        
+        # Multi-agent coordination: Check if task is already claimed
+        if is_task_claimed(plan_filename):
+            logger.info(f"Task {plan_filename} already claimed by another agent. Skipping.")
+            continue
+            
         logger.info(f"New plan found: {plan_file}")
-        with open(plan_file, 'r', encoding='utf-8') as f: # Specify encoding
-            plan_content = f.read()
         
-        actions_to_take = parse_plan(plan_content)
+        # Claim the task
+        claimed_plan_path = claim_task(plan_file)
         
-        if actions_to_take:
-            for action_details in actions_to_take:
-                create_approval_request(plan_file, action_details)
-            move_plan_to_done(plan_file)
-        else:
-            logger.info(f"No specific actions found in plan: {plan_file}. Moving to Done.")
-            move_plan_to_done(plan_file)
+        try:
+            with open(claimed_plan_path, 'r', encoding='utf-8') as f:
+                plan_content = f.read()
+            
+            actions_to_take = parse_plan(plan_content)
+            
+            if actions_to_take:
+                for action_details in actions_to_take:
+                    create_approval_request(claimed_plan_path, action_details)
+                move_plan_to_done(claimed_plan_path)
+            else:
+                logger.info(f"No specific actions found in plan: {plan_filename}. Moving to Done.")
+                move_plan_to_done(claimed_plan_path)
+        except Exception as e:
+            logger.error(f"Critical error processing plan {plan_filename}: {e}")
+            ErrorManager.quarantine_file(Path(claimed_plan_path), f"Plan Processing Error: {e}")
+            ErrorManager.handle_failure("scan_plans_and_process", e, (plan_filename,))
 
 def main():
     """Main loop for the AI Employee processor."""

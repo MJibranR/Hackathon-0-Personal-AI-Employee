@@ -36,12 +36,18 @@ def add_to_processed_tasks(task_file):
     with open(LEDGER_FILE, 'a') as f:
         f.write(os.path.basename(task_file) + '\n')
 
+from .error_manager import ErrorManager
+from pathlib import Path
+
+# ... (other imports)
+
 def read_task_content(task_file_path):
     try:
         with open(task_file_path, 'r', encoding='utf-8') as f:
             return f.read()
     except Exception as e:
         logger.error(f"Error reading task file {task_file_path}: {e}")
+        ErrorManager.quarantine_file(Path(task_file_path), f"Read Error: {e}")
         return None
 
 def create_plan_file(original_task_content, original_task_filename):
@@ -88,9 +94,25 @@ def move_to_done(task_file_path):
     except Exception as e:
         logger.error(f"Error moving file {task_file_path} to Done: {e}")
 
+def run_analytics_if_needed():
+    """Generates a CEO briefing on Mondays or if forced."""
+    today = datetime.datetime.now()
+    if today.weekday() == 0: # Monday
+        logger.info("Monday detected. Generating CEO Briefing...")
+        try:
+            from scripts.analytics_engine import generate_advanced_briefing
+            generate_advanced_briefing()
+            logger.info("CEO Briefing successfully generated.")
+        except Exception as e:
+            logger.error(f"Error generating CEO briefing: {e}")
+
 def run_planner_once():
     """Scans the Inbox for new tasks and triggers planning for each."""
     logger.info("Starting AI Employee single run...")
+    
+    # Run analytics first (Autonomous Briefing)
+    run_analytics_if_needed()
+    
     processed_tasks = get_processed_tasks()
     
     inbox_files = glob.glob(os.path.join(INBOX_PATH, "*.md"))

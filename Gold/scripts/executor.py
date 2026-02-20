@@ -29,55 +29,91 @@ VAULT_PATH = os.path.join(PROJECT_ROOT, "vault")
 APPROVED_PATH = os.path.join(VAULT_PATH, "Approved")
 DONE_PATH = os.path.join(VAULT_PATH, "Done")
 
+from .error_manager import ErrorManager
+
+from .utils.audit_logger import audit_logger
+
 # Paths to the action scripts
 SEND_EMAIL_SCRIPT = os.path.join(PROJECT_ROOT, ".claude", "skills", "gmail-send", "scripts", "send_email.py")
 POST_LINKEDIN_SCRIPT = os.path.join(PROJECT_ROOT, ".claude", "skills", "linkedin-post", "scripts", "post_linkedin.py")
+ODOO_SCRIPT = os.path.join(PROJECT_ROOT, ".claude", "skills", "odoo-accounting", "scripts", "odoo_accounting.py")
+META_SCRIPT = os.path.join(PROJECT_ROOT, ".claude", "skills", "meta-social", "scripts", "meta_social.py")
+X_SCRIPT = os.path.join(PROJECT_ROOT, ".claude", "skills", "x-twitter", "scripts", "x_twitter.py")
 
-def parse_approval_file(file_path):
-    """Parses an approval file to get action details using PyYAML."""
-    with open(file_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-    
-    # Extract YAML front matter
-    match = re.match(r'---\s*\n(.*?)\n---\s*\n(.*)', content, re.DOTALL)
-    if match:
-        yaml_front_matter = match.group(1)
-        try:
-            details = yaml.safe_load(yaml_front_matter)
-            return details
-        except yaml.YAMLError as e:
-            logger.error(f"Error parsing YAML in approval file {file_path}: {e}")
-            return None
-    logger.error(f"No YAML front matter found in approval file: {file_path}")
-    return None
-
+@ErrorManager.with_backoff(max_retries=3, base_delay=2.0)
 def execute_action(action_details):
     """Executes the action specified in the approval file."""
     action = action_details.get('action')
     logger.info(f"Executing action: {action}")
-
-    if action == 'send_email':
-        to = action_details.get('to')
-        subject = action_details.get('subject')
-        body = action_details.get('body')
-        if to and subject and body:
-            # Ensure body is a single string for subprocess call
-            body_str = body.replace('\n  ', '\n').strip()
-            subprocess.run([sys.executable, SEND_EMAIL_SCRIPT, to, subject, body_str])
-        else:
-            logger.error(f"Missing details for sending email: {action_details}")
-
-    elif action == 'post_linkedin':
-        content = action_details.get('content')
-        if content:
-            # Ensure content is a single string for subprocess call
-            content_str = content.replace('\n  ', '\n').strip()
-            subprocess.run([sys.executable, POST_LINKEDIN_SCRIPT, content_str])
-        else:
-            logger.error(f"Missing content for LinkedIn post: {action_details}")
     
-    else:
-        logger.error(f"Unknown action: {action_details}")
+    # Pre-execution logging (audit trail)
+    audit_logger.log(
+        action_type=action,
+        target=action_details.get('to', action_details.get('client_id', 'n/a')),
+        parameters=action_details,
+        approval_status="approved",
+        approved_by="human"
+    )
+
+    try:
+        if action == 'send_email':
+            to = action_details.get('to')
+            subject = action_details.get('subject')
+            body = action_details.get('body')
+            if to and subject and body:
+                # Ensure body is a single string for subprocess call
+                body_str = body.replace('\n  ', '\n').strip()
+                subprocess.run([sys.executable, SEND_EMAIL_SCRIPT, to, subject, body_str])
+            else:
+                logger.error(f"Missing details for sending email: {action_details}")
+
+        elif action == 'post_linkedin':
+            content = action_details.get('content')
+            if content:
+                # Ensure content is a single string for subprocess call
+                content_str = content.replace('\n  ', '\n').strip()
+                subprocess.run([sys.executable, POST_LINKEDIN_SCRIPT, content_str])
+            else:
+                logger.error(f"Missing content for LinkedIn post: {action_details}")
+
+        elif action == 'create_odoo_invoice':
+            client_id = action_details.get('client_id')
+            amount = action_details.get('amount')
+            if client_id and amount:
+                subprocess.run([sys.executable, ODOO_SCRIPT, str(client_id), str(amount)])
+            else:
+                logger.error(f"Missing details for Odoo invoice: {action_details}")
+
+        elif action in ['post_facebook', 'post_instagram']:
+            platform = action.replace('post_', '')
+            content = action_details.get('content')
+            if content:
+                content_str = content.replace('\n  ', '\n').strip()
+                subprocess.run([sys.executable, META_SCRIPT, platform, content_str])
+            else:
+                logger.error(f"Missing content for Meta post: {action_details}")
+
+        elif action == 'post_x':
+            content = action_details.get('content')
+            if content:
+                content_str = content.replace('\n  ', '\n').strip()
+                subprocess.run([sys.executable, X_SCRIPT, content_str])
+            else:
+                logger.error(f"Missing content for X post: {action_details}")
+        
+        else:
+            logger.error(f"Unknown action: {action_details}")
+            
+    except Exception as e:
+        # Audit failure
+        audit_logger.log(
+            action_type=action,
+            target="n/a",
+            parameters=action_details,
+            result="failure",
+            approval_status="approved"
+        )
+        raise e
 
 def move_to_done(file_path):
     """Moves a file to the Done directory."""

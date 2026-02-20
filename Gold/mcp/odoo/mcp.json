@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "odoo": {
+      "command": "python",
+      "args": ["-m", "mcp.odoo.mcp_server"],
+      "env": {
+        "ODOO_URL": "http://localhost:8069",
+        "ODOO_DB": "your_db_name",
+        "ODOO_USER": "admin",
+        "ODOO_PASSWORD": "your_password",
+        "DRY_RUN": "true",
+        "VAULT_PATH": "C:/Users/DELL/Desktop/Hackathon 0/gold/AI_Employee_Vault"
+      }
+    }
+  }
+}
